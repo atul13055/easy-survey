@@ -1,0 +1,110 @@
+
+  <title>Easy Survey</title>
+  <style>
+    #survey-container {
+      width: 900px;
+      height: 1273px;
+      border: 1px solid #ccc;
+      position: relative;
+    }
+    .component {
+      position: absolute;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="row">
+    <div class="col-md-3">
+      <h3>Toolbox</h3>
+      <button id="add-label" class="btn btn-secondary">Add Label</button>
+      <button id="add-input" class="btn btn-secondary">Add Input</button>
+    </div>
+    <div class="col-md-9">
+      <div id="survey-container">
+        <% @survey.components.each do |component| %>
+          <div class="component" data-id="<%= component.id %>" style="width: 900px; height: 1273px; border: 1px solid #ccc;">
+            <% if component.component_type == "label" %>
+              <span contenteditable="true"><%= component.content %></span>
+            <% else %>
+              <input type="text" value="<%= component.content %>">
+            <% end %>
+            <button class="delete-component btn btn-danger btn-sm">Delete</button>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+  $(document).ready(function() {
+    var surveyId = <%= @survey.id %>; // Assuming @survey.id contains the survey ID
+    var csrfToken = $('meta[name="csrf-token"]').attr('content');
+
+    function setCsrfToken(xhr) {
+      xhr.setRequestHeader('X-CSRF-Token', csrfToken);
+    }
+       
+
+    function makeDraggable(component) {
+      component.draggable({
+        containment: "#survey-container",
+        stop: function(event, ui) {
+          var componentId = $(this).data("id");
+          var position = ui.position;
+          $.ajax({
+            url: `/components/${componentId}`,
+            type: 'PATCH',
+            data: { component: { position_x: position.left, position_y: position.top } },
+            beforeSend: setCsrfToken
+          });
+        }
+      });
+    }
+
+    $(".component").each(function() {
+      makeDraggable($(this));
+    });
+
+    $("#add-label").click(function() {
+      var newLabel = $('<div class="component"><span contenteditable="true">New Label</span><button class="delete-component btn btn-danger btn-sm">Delete</button></div>');
+      $("#survey-container").append(newLabel);
+      makeDraggable(newLabel);
+      saveNewComponent(newLabel, "label");
+    });
+
+    $("#add-input").click(function() {
+      var newInput = $('<div class="component"><input type="text" value="New Input"><button class="delete-component btn btn-danger btn-sm">Delete</button></div>');
+      $("#survey-container").append(newInput);
+      makeDraggable(newInput);
+      saveNewComponent(newInput, "input");
+    });
+
+    function saveNewComponent(component, type) {
+      $.ajax({
+        url: '/components',
+        type: 'POST',
+        data: { component: { component_type: type, content: '', survey_id: surveyId } },
+        beforeSend: setCsrfToken,
+        success: function(data) {
+          component.attr('data-id', data.id);
+        }
+      });
+    }
+
+    $(document).on("click", ".delete-component", function() {
+      var component = $(this).closest(".component");
+      var componentId = component.data("id");
+      $.ajax({
+        url: `/components/${componentId}`,
+        type: 'DELETE',
+        beforeSend: setCsrfToken,
+        success: function() {
+          component.remove();
+        }
+      });
+    });
+  });
+</script>
